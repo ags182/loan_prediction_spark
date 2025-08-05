@@ -1,3 +1,6 @@
+import os
+os.environ["PYSPARK_PYTHON"] = "/usr/bin/python3"  # or the output of `which python3`
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import when, col, count
 from pyspark.ml.feature import VectorAssembler, StringIndexer
@@ -95,3 +98,4 @@ with open("output.txt", "w") as f:
 
 # Done
 spark.stop()
+
