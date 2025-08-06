@@ -80,6 +80,14 @@ total_rows = df.count()
 print(f"Total rows in dataset: {total_rows}")
 
 # How big of a problem are outliers?
+# Using the below IQR method, I found the following outlier percentages:
+# - ApplicantIncome: 50 outliers (~8.1%)
+# - CoapplicantIncome: 18 outliers (~2.9%)
+# - LoanAmount: 41 outliers (~6.7%)
+# Since these are relatively small proportions and may reflect real variation (e.g., high earners or 
+# larger loans), I chose to keep the outliers. Removing them could harm the model’s ability to 
+# generalize to real-world data.
+
 with open("outliers_log.txt", "w") as f:
     for colname in ["ApplicantIncome", "CoapplicantIncome", "LoanAmount"]:
         q1, q3 = df.approxQuantile(colname, [0.25, 0.75], 0.0)
@@ -96,40 +104,54 @@ df = assembler.transform(df)
 # Split into train/test sets
 train, test = df.randomSplit([0.8, 0.2], seed=42)
 
-# Set up evaluator
-evaluator = MulticlassClassificationEvaluator(
-    labelCol="label", predictionCol="prediction", metricName="accuracy"
-)
+# Evaluation metrics setup
+evaluator_acc = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="accuracy")
+evaluator_f1 = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="f1")
+evaluator_prec = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedPrecision")
+evaluator_rec = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedRecall")
+
+def evaluate(predictions):
+    return {
+        "accuracy": evaluator_acc.evaluate(predictions),
+        "f1": evaluator_f1.evaluate(predictions),
+        "precision": evaluator_prec.evaluate(predictions),
+        "recall": evaluator_rec.evaluate(predictions)
+    }
+
 results = {}
 
 # Logistic Regression
 lr = LogisticRegression(featuresCol="features", labelCol="label")
-lr_model = lr.fit(train)
-lr_preds = lr_model.transform(test)
-results["Logistic Regression"] = evaluator.evaluate(lr_preds)
+lr_preds = lr.fit(train).transform(test)
+results["Logistic Regression"] = evaluate(lr_preds)
 
 # Decision Tree
 dt = DecisionTreeClassifier(featuresCol="features", labelCol="label")
-dt_model = dt.fit(train)
-dt_preds = dt_model.transform(test)
-results["Decision Tree"] = evaluator.evaluate(dt_preds)
+dt_preds = dt.fit(train).transform(test)
+results["Decision Tree"] = evaluate(dt_preds)
 
 # Random Forest
 rf = RandomForestClassifier(featuresCol="features", labelCol="label", numTrees=50)
-rf_model = rf.fit(train)
-rf_preds = rf_model.transform(test)
-results["Random Forest"] = evaluator.evaluate(rf_preds)
+rf_preds = rf.fit(train).transform(test)
+results["Random Forest"] = evaluate(rf_preds)
 
-# Save accuracy scores to output.txt
+# Save results
 with open("output.txt", "w") as f:
-    for model_name, accuracy in results.items():
-        f.write(f"{model_name} Accuracy: {accuracy:.4f}\n")
+    for model, metrics in results.items():
+        f.write(f"{model}:\n")
+        for metric, val in metrics.items():
+            f.write(f"  {metric.capitalize()}: {val:.4f}\n")
+        f.write("\n")
 
-# print accuracy scores on the screen after running the script
-print("=== Model Accuracy Scores ===")
-for model_name, accuracy in results.items():
-    print(f"{model_name}: {accuracy:.4f}")
+# Print results
+print("=== Model Performance ===")
+for model, metrics in results.items():
+    print(f"{model}:")
+    for metric, val in metrics.items():
+        print(f"  {metric.capitalize()}: {val:.4f}")
+    print()
 
+# Stop Spark session
 spark.stop()
 
 
