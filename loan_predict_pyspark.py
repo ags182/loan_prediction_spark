@@ -80,13 +80,14 @@ total_rows = df.count()
 print(f"Total rows in dataset: {total_rows}")
 
 # How big of a problem are outliers?
-for colname in ["ApplicantIncome", "CoapplicantIncome", "LoanAmount"]:
-    q1, q3 = df.approxQuantile(colname, [0.25, 0.75], 0.0)
-    iqr = q3 - q1
-    lower_bound = q1 - 1.5 * iqr
-    upper_bound = q3 + 1.5 * iqr
-    outlier_count = df.filter((col(colname) < lower_bound) | (col(colname) > upper_bound)).count()
-    print(f"{colname}: {outlier_count} outliers out of {total_rows} rows")
+with open("outliers_log.txt", "w") as f:
+    for colname in ["ApplicantIncome", "CoapplicantIncome", "LoanAmount"]:
+        q1, q3 = df.approxQuantile(colname, [0.25, 0.75], 0.0)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        outlier_count = df.filter((col(colname) < lower_bound) | (col(colname) > upper_bound)).count()
+        f.write(f"{colname}: {outlier_count} outliers out of {total_rows} rows\n")
 
 # Assemble features into a single vector
 assembler = VectorAssembler(inputCols=features, outputCol="features")
@@ -130,6 +131,7 @@ for model_name, accuracy in results.items():
     print(f"{model_name}: {accuracy:.4f}")
 
 spark.stop()
+
 
 
 
